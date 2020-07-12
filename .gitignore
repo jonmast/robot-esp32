@@ -1,0 +1,5 @@
+secrets.h
+.ccls-cache
+compile_commands.json
+build/
+Debug/
