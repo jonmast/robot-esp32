@@ -63,7 +63,7 @@ void app_main(void) {
 
   init_wifi(&start_webserver);
 
-  xTaskCreate(control_loop, "control_loop", 2048, NULL, 10, NULL);
+  /* xTaskCreate(control_loop, "control_loop", 2048, NULL, 10, NULL); */
 
   /* while (true) { */
   /*   printf("Powering motor\n"); */

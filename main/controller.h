@@ -15,5 +15,6 @@ typedef struct {
 
 void update_state(remote_event event);
 void control_loop(void *pvParameters);
+void control_sync();
 
 extern controller global_controller;

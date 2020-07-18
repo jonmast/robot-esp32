@@ -3,47 +3,29 @@
 #include "esp_log.h"
 
 #include "./controller.h"
-#include "./remote_page.c"
 #include "./server.h"
 
 static char *TAG = "robot-server";
 
 static esp_err_t get_handler(httpd_req_t *req) {
-  httpd_resp_send(req, (char *)remote_html, remote_html_len);
+  extern const unsigned char remote_html_start[] asm(
+      "_binary_remote_html_start");
+  extern const unsigned char remote_html_end[] asm("_binary_remote_html_end");
+  const size_t remote_html_len = (remote_html_end - remote_html_start);
+  httpd_resp_send(req, (char *)remote_html_start, remote_html_len);
 
   return ESP_OK;
 }
 
 static void handle_message(char *payload) {
   cJSON *msg = cJSON_Parse(payload);
-  remote_event event;
-  char *direction = cJSON_GetStringValue(cJSON_GetObjectItem(msg, "direction"));
+  cJSON *jsonPosition = cJSON_GetObjectItem(msg, "position");
+  float x = cJSON_GetObjectItem(jsonPosition, "x")->valuedouble;
+  float y = cJSON_GetObjectItem(jsonPosition, "y")->valuedouble;
 
-  if (strcmp(direction, "up") == 0) {
-    event.direction = Up;
-  } else if (strcmp(direction, "right") == 0) {
-    event.direction = Right;
-  } else if (strcmp(direction, "down") == 0) {
-    event.direction = Down;
-  } else if (strcmp(direction, "left") == 0) {
-    event.direction = Left;
-  } else {
-    ESP_LOGE(TAG, "Unrecognized direction %s", direction);
-    return;
-  }
-
-  char *action = cJSON_GetStringValue(cJSON_GetObjectItem(msg, "action"));
-
-  if (strcmp(action, "start") == 0) {
-    event.action = Start;
-  } else if (strcmp(action, "end") == 0) {
-    event.action = End;
-  } else {
-    ESP_LOGE(TAG, "Unrecognized action %s", action);
-    return;
-  }
-
+  remote_event event = {.new_position = {x, y}};
   update_state(event);
+  control_sync();
 
   /* return trigger_async_send(req->handle, req); */
 
@@ -62,8 +44,6 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     return ret;
   }
   ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
-  ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
-  /* bar baz; */
   if (ws_pkt.type == HTTPD_WS_TYPE_TEXT) {
     handle_message((char *)ws_pkt.payload);
   }

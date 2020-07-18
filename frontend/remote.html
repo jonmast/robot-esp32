@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Remote</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8" />
+    <style>
+      html {
+        --button-size: min(30vw, 200px);
+      }
+
+      #remote {
+        margin: 0 auto 20px auto;
+        width: calc(var(--button-size) * 3);
+      }
+
+      .button {
+        height: var(--button-size);
+        width: var(--button-size);
+        background: purple;
+        border-radius: 10px;
+      }
+
+      .right {
+        margin-left: var(--button-size);
+      }
+
+      .flexrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #log {
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="remote">
+      <div class="flexrow">
+        <button class="button" data-direction="up"></button>
+      </div>
+      <div class="flexrow">
+        <button class="button" data-direction="left"></button>
+        <button class="button right" data-direction="right"></button>
+      </div>
+      <div class="flexrow">
+        <button class="button" data-direction="down"></button>
+      </div>
+    </div>
+    <div id="log"></div>
+
+    <script>
+      let socket;
+      const logEl = document.getElementById("log");
+
+      function connect() {
+        socket = new WebSocket(`ws://${location.hostname}/websocket`);
+
+        socket.addEventListener("open", (event) => {
+          logEl.innerText = "Connected!";
+        });
+
+        socket.addEventListener("error", (event) => {
+          console.log(event);
+          logEl.innerText = "Connection failed :(";
+        });
+
+        // TODO: setInterval heartbeat
+      }
+
+      function bind_events() {
+        const remote = document.getElementById("remote");
+        let dragStart = null;
+
+        const start = (event) => {
+          event.preventDefault();
+
+          console.log("start");
+
+          if (event.changedTouches) {
+            dragStart = {
+              x: event.changedTouches[0].clientX,
+              y: event.changedTouches[0].clientY,
+            };
+          } else {
+            dragStart = {
+              x: event.clientX,
+              y: event.clientY,
+            };
+          }
+        };
+
+        // Convert raw pixel diff to percentage
+        const normalizePosition = (rawPosition) => {
+          // Assuming box is square for simplicity
+          const boxSize = remote.clientWidth;
+          // Make range slightly smaller than box so starting exactly in center is unnecessary
+          const range = boxSize / 2.5;
+
+          const percentage = (rawPosition / range) * 100;
+
+          if (percentage < 0) {
+            return Math.max(percentage, -100);
+          } else {
+            return Math.min(percentage, 100);
+          }
+        };
+
+        const move = (event) => {
+          if (dragStart === null) {
+            return;
+          }
+
+          const { clientX, clientY } =
+            (event.changedTouches && event.changedTouches[0]) || event;
+
+          const xPos = clientX - dragStart.x;
+          // Flipping sign on Y because screen coordinates start at top
+          const yPos = -(clientY - dragStart.y);
+
+          const x = normalizePosition(xPos);
+          const y = normalizePosition(yPos);
+
+          console.log("Moved to", [x, y]);
+          socket.send(JSON.stringify({ position: { x: x, y: y } }));
+        };
+
+        const end = (event) => {
+          console.log("end");
+
+          dragStart = null;
+          socket.send(JSON.stringify({ position: { x: 0, y: 0 } }));
+        };
+
+        const throttledMove = throttle(move, 30);
+        remote.addEventListener("touchstart", start);
+        remote.addEventListener("mousedown", start);
+        document.addEventListener("mousemove", throttledMove);
+        document.addEventListener("touchmove", throttledMove);
+        document.addEventListener("mouseup", end);
+        document.addEventListener("touchend", end);
+      }
+
+      function throttle(func, limit) {
+        let lastFunc;
+        let lastRan;
+        return function () {
+          const context = this;
+          const args = arguments;
+          if (!lastRan) {
+            func.apply(context, args);
+            lastRan = Date.now();
+          } else {
+            clearTimeout(lastFunc);
+            lastFunc = setTimeout(function () {
+              if (Date.now() - lastRan >= limit) {
+                func.apply(context, args);
+                lastRan = Date.now();
+              }
+            }, limit - (Date.now() - lastRan));
+          }
+        };
+      }
+
+      connect();
+      bind_events();
+    </script>
+  </body>
+</html>
