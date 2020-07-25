@@ -19,6 +19,7 @@
 #include "./controller.h"
 #include "./motor.h"
 #include "./server.h"
+#include "./ultrasonic.h"
 #include "./wifi.h"
 
 controller global_controller = {.remote_position = {0, 0}};
@@ -61,8 +62,9 @@ void app_main(void) {
                        MCPWM_UNIT_1, MCPWM_TIMER_1, MCPWM_OPR_B);
   global_controller.right_motor = right_motor;
 
-  init_wifi(&start_webserver);
+  xTaskCreate(poll_distance, "poll_distance", 2048, NULL, 10, NULL);
 
+  init_wifi(&start_webserver);
   /* xTaskCreate(control_loop, "control_loop", 2048, NULL, 10, NULL); */
 
   /* while (true) { */
