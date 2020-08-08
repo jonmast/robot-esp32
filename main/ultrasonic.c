@@ -87,7 +87,7 @@ static void process_gpio_events(void *arg) {
         float median = ring_buffer_median(&running_average);
         global_controller.front_distance = median;
 
-        if ((idx - last_printed) >= 5) {
+        if ((idx - last_printed) >= 10) {
           ESP_LOGI(TAG, "Raw: %f Running Median: %f", distance, median);
           last_printed = idx;
         }

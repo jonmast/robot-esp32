@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "freertos/event_groups.h"
+#include "string.h"
 
 #include "../secrets.h"
 
@@ -34,6 +35,45 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     s_retry_num = 0;
     xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
   }
+}
+
+static void ap_event_handler(void *arg, esp_event_base_t event_base,
+                             int32_t event_id, void *event_data) {
+  if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+    wifi_event_ap_staconnected_t *event =
+        (wifi_event_ap_staconnected_t *)event_data;
+    ESP_LOGI(TAG, "station " MACSTR " join, AID=%d", MAC2STR(event->mac),
+             event->aid);
+  } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+    wifi_event_ap_stadisconnected_t *event =
+        (wifi_event_ap_stadisconnected_t *)event_data;
+    ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d", MAC2STR(event->mac),
+             event->aid);
+  }
+}
+
+const static int MAX_STA_CONNS = 1;
+static void wifi_init_softap(void *(*on_success)()) {
+  esp_netif_create_default_wifi_ap();
+
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(
+      WIFI_EVENT, ESP_EVENT_ANY_ID, &ap_event_handler, NULL, NULL));
+
+  wifi_config_t wifi_config = {
+      .ap = {.ssid = AP_SSID,
+             .ssid_len = strlen(AP_SSID),
+             .channel = 1,
+             .password = "",
+             .max_connection = MAX_STA_CONNS,
+             .authmode = WIFI_AUTH_OPEN},
+  };
+
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+  ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
+  ESP_ERROR_CHECK(esp_wifi_start());
+
+  ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s", AP_SSID);
+  on_success();
 }
 
 void init_wifi(void *(*on_success)()) {
@@ -87,6 +127,7 @@ void init_wifi(void *(*on_success)()) {
   } else if (bits & WIFI_FAIL_BIT) {
     ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", WIFI_SSID,
              WIFI_PASSWORD);
+    wifi_init_softap(on_success);
   } else {
     ESP_LOGE(TAG, "UNEXPECTED EVENT");
   }
