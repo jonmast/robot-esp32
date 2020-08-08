@@ -11,6 +11,7 @@ typedef struct {
   motor left_motor;
   motor right_motor;
   float remote_position[2];
+  float front_distance;
 } controller;
 
 void update_state(remote_event event);

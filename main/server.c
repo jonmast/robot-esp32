@@ -20,16 +20,54 @@ static esp_err_t get_handler(httpd_req_t *req) {
 static void handle_message(char *payload) {
   cJSON *msg = cJSON_Parse(payload);
   cJSON *jsonPosition = cJSON_GetObjectItem(msg, "position");
-  float x = cJSON_GetObjectItem(jsonPosition, "x")->valuedouble;
-  float y = cJSON_GetObjectItem(jsonPosition, "y")->valuedouble;
 
-  remote_event event = {.new_position = {x, y}};
-  update_state(event);
-  control_sync();
+  if (jsonPosition) {
+    ESP_LOGI(TAG, "Got packet with message: %s", payload);
+    float x = cJSON_GetObjectItem(jsonPosition, "x")->valuedouble;
+    float y = cJSON_GetObjectItem(jsonPosition, "y")->valuedouble;
 
-  /* return trigger_async_send(req->handle, req); */
+    remote_event event = {.new_position = {x, y}};
+    // TODO: This should use a queue
+    update_state(event);
+    control_sync();
+  }
 
   cJSON_Delete(msg);
+}
+
+static char *current_state_json() {
+  cJSON *msg = cJSON_CreateObject();
+
+  cJSON_AddNumberToObject(msg, "left",
+                          global_controller.left_motor.current_speed);
+  cJSON_AddNumberToObject(msg, "right",
+                          global_controller.right_motor.current_speed);
+  cJSON_AddNumberToObject(msg, "front_distance",
+                          global_controller.front_distance);
+
+  char *result = cJSON_Print(msg);
+
+  cJSON_Delete(msg);
+
+  return result;
+}
+
+static esp_err_t send_ws_response(httpd_req_t *req) {
+  char *data = current_state_json();
+
+  httpd_ws_frame_t ws_response = {.payload = (uint8_t *)data,
+                                  .len = strlen(data),
+                                  .type = HTTPD_WS_TYPE_TEXT,
+                                  .final = true};
+
+  esp_err_t ret = httpd_ws_send_frame(req, &ws_response);
+  free(data);
+
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
+  }
+
+  return ret;
 }
 
 static esp_err_t ws_handler(httpd_req_t *req) {
@@ -43,16 +81,11 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
     return ret;
   }
-  ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
   if (ws_pkt.type == HTTPD_WS_TYPE_TEXT) {
     handle_message((char *)ws_pkt.payload);
   }
 
-  /* ret = httpd_ws_send_frame(req, &ws_pkt); */
-  /* if (ret != ESP_OK) { */
-  /*   ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret); */
-  /* } */
-  return ret;
+  return send_ws_response(req);
 }
 
 httpd_uri_t uri_root = {

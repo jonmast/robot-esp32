@@ -49,11 +49,13 @@
         <button class="button" data-direction="down"></button>
       </div>
     </div>
+    <div id="status"></div>
     <div id="log"></div>
 
     <script>
       let socket;
       const logEl = document.getElementById("log");
+      const statusEl = document.getElementById("status");
 
       function connect() {
         socket = new WebSocket(`ws://${location.hostname}/websocket`);
@@ -65,9 +67,17 @@
         socket.addEventListener("error", (event) => {
           console.log(event);
           logEl.innerText = "Connection failed :(";
+          connect();
         });
 
-        // TODO: setInterval heartbeat
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          statusEl.innerText = `Left ${data.left.toFixed(
+            0
+          )}, Right: ${data.right.toFixed(
+            0
+          )}, Front: ${data.front_distance.toFixed(0)}`;
+        };
       }
 
       function bind_events() {
@@ -134,13 +144,17 @@
           socket.send(JSON.stringify({ position: { x: 0, y: 0 } }));
         };
 
-        const throttledMove = throttle(move, 30);
+        const throttledMove = throttle(move, 20);
         remote.addEventListener("touchstart", start);
         remote.addEventListener("mousedown", start);
         document.addEventListener("mousemove", throttledMove);
         document.addEventListener("touchmove", throttledMove);
         document.addEventListener("mouseup", end);
         document.addEventListener("touchend", end);
+      }
+
+      function send_heartbeat() {
+        socket.send(JSON.stringify({}));
       }
 
       function throttle(func, limit) {
@@ -166,6 +180,7 @@
 
       connect();
       bind_events();
+      setInterval(send_heartbeat, 100);
     </script>
   </body>
 </html>

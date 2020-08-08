@@ -7,8 +7,6 @@
 #include "motor.h"
 #include "server.h"
 
-static char *TAG = "robot-controller";
-
 void update_state(remote_event event) {
   global_controller.remote_position[X_IDX] = event.new_position[X_IDX];
   global_controller.remote_position[Y_IDX] = event.new_position[Y_IDX];
@@ -62,25 +60,3 @@ void control_sync() {
     }
   }
 }
-
-/* // Adjust speed by 5% every 10ms */
-/* static int TICK_MS = 10; */
-/* /1* static float TICK_RAMP = 1; *1/ */
-/* static int tick_n = 0; */
-
-/* void control_loop(void *pvParameters) { */
-/*   // TODO: This should really be event driven */
-/*   while (true) { */
-/*     vTaskDelay(TICK_MS / portTICK_PERIOD_MS); */
-
-/*     tick_n++; */
-
-/*     if (tick_n % 50 == 0) { */
-/*       float x = global_controller.remote_position[X_IDX]; */
-/*       float y = global_controller.remote_position[Y_IDX]; */
-/*       ESP_LOGI(TAG, "Current state: x = %f, y = %f", x, y); */
-/*     } */
-
-/*     control_sync(); */
-/*   } */
-/* } */

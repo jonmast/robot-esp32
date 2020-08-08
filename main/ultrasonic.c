@@ -4,6 +4,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include "controller.h"
 #include "ultrasonic.h"
 
 #define ESP_INTR_FLAG_DEFAULT 0
@@ -49,8 +50,6 @@ float ring_buffer_median(ring_buffer *buffer) {
   return median_of(buffer->values[0], buffer->values[1], buffer->values[2]);
 }
 
-static xQueueHandle gpio_evt_queue = NULL;
-
 typedef struct {
   gpio_num_t pin;
   int64_t timestamp;
@@ -70,17 +69,32 @@ static void process_gpio_events(void *arg) {
   gpio_event event;
   int64_t pulse_start = 0;
   ring_buffer running_average = {};
+  int idx = 0;
+  int last_printed = -10;
 
   for (;;) {
     if (xQueueReceive(sensor->event_queue, &event, portMAX_DELAY)) {
-      if (gpio_get_level(event.pin) == 1) {
+      idx++;
+      int pin_state = gpio_get_level(event.pin);
+
+      if (pin_state == 1 && sensor->state == triggered) {
+        sensor->state = reading;
         pulse_start = event.timestamp;
-      } else {
+      } else if (pin_state == 0 && sensor->state == reading) {
+        sensor->state = idle;
         float distance = (event.timestamp - pulse_start) / CM_ROUNDTRIP_US;
         ring_buffer_push(&running_average, distance);
         float median = ring_buffer_median(&running_average);
+        global_controller.front_distance = median;
 
-        ESP_LOGI(TAG, "Raw: %f Running Median: %f", distance, median);
+        if ((idx - last_printed) >= 5) {
+          ESP_LOGI(TAG, "Raw: %f Running Median: %f", distance, median);
+          last_printed = idx;
+        }
+      } else {
+        ESP_LOGW(TAG, "Sensor is in invalid state: pin = %d, state = %d",
+                 pin_state, sensor->state);
+        sensor->state = idle; // Reset to default state
       }
     }
   }
@@ -91,9 +105,8 @@ static void initialize_ultrasonic_sensor(ultrasonic_sensor *sensor,
   sensor->trig = trig;
   sensor->echo = echo;
   sensor->event_queue = xQueueCreate(3, sizeof(gpio_event));
+  sensor->state = idle;
 
-  // FIXME: get rid of this
-  gpio_evt_queue = sensor->event_queue;
   initialize_output_gpio(trig);
   gpio_set_level(trig, 0);
 
@@ -115,11 +128,17 @@ static void delay_usecs(int usecs) {
 
 // Initiate cycle on trigger pin which will then trigger interrupts on our
 // echo pin
-static void trigger_read(const ultrasonic_sensor *sensor) {
-  // Set trigger high for 10 microseconds, then low to start cycle
-  ESP_ERROR_CHECK(gpio_set_level(sensor->trig, 1));
-  delay_usecs(10);
-  ESP_ERROR_CHECK(gpio_set_level(sensor->trig, 0));
+static void trigger_read(ultrasonic_sensor *sensor) {
+  if (sensor->state == idle) {
+    // Set trigger high for 10 microseconds, then low to start cycle
+    ESP_ERROR_CHECK(gpio_set_level(sensor->trig, 1));
+    delay_usecs(10);
+    ESP_ERROR_CHECK(gpio_set_level(sensor->trig, 0));
+    sensor->state = triggered;
+  } else {
+    ESP_LOGW(TAG, "Sensor is not idle, skipping read. State: %i",
+             sensor->state);
+  }
 }
 
 #define TRIG_GPIO 25
@@ -132,8 +151,7 @@ void poll_distance() {
   gpio_isr_handler_add(sensor.echo, gpio_isr_handler, (void *)&sensor);
 
   while (true) {
-    // New reading every second
-    vTaskDelay(700 / portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
 
     trigger_read(&sensor);
   }
