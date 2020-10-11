@@ -2,7 +2,7 @@
 #include "driver/mcpwm.h"
 #include "esp_log.h"
 
-#include "./motor.h"
+#include "motor.h"
 
 static char *TAG = "robot-motor";
 

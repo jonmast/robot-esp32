@@ -1,10 +1,11 @@
+#include <stdio.h>
+
 #include "esp_spi_flash.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
-#include <stdio.h>
 
 #define BIN1_GPIO 23
 #define BIN2_GPIO 22

@@ -3,8 +3,8 @@
 #include "esp_log.h"
 #include "freertos/queue.h"
 
-#include "./controller.h"
-#include "./server.h"
+#include "controller.h"
+#include "server.h"
 
 static char *TAG = "robot-server";
 

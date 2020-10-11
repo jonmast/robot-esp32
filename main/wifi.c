@@ -5,6 +5,7 @@
 #include "string.h"
 
 #include "../secrets.h"
+#include "wifi.h"
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
@@ -52,7 +53,7 @@ static void ap_event_handler(void *arg, esp_event_base_t event_base,
   }
 }
 
-const static int MAX_STA_CONNS = 1;
+static const int MAX_STA_CONNS = 1;
 static void wifi_init_softap(void *(*on_success)()) {
   esp_netif_create_default_wifi_ap();
 
