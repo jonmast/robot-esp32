@@ -9,8 +9,8 @@
 static char *TAG = "robot-server";
 
 static esp_err_t get_handler(httpd_req_t *req) {
-  extern const char *remote_html_start asm("_binary_remote_html_start");
-  extern const char *remote_html_end asm("_binary_remote_html_end");
+  extern const char remote_html_start[] asm("_binary_remote_html_start");
+  extern const char remote_html_end[] asm("_binary_remote_html_end");
   const size_t remote_html_len = (remote_html_end - remote_html_start);
   httpd_resp_send(req, remote_html_start, remote_html_len);
 

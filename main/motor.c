@@ -23,7 +23,6 @@ static void initialize_pwm_output(int pin_number, int pwm_unit, int pwm_timer,
   pwm_config.counter_mode = MCPWM_UP_COUNTER;
   pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
   mcpwm_init(pwm_unit, pwm_timer, &pwm_config);
-  /* mcpwm_set_signal_low(pwm_unit, pwm_timer, pwm_op); */
 }
 
 void stop_motor(motor *m) {

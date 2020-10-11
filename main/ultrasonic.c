@@ -92,8 +92,8 @@ static void process_gpio_events(void *arg) {
           last_printed = idx;
         }
       } else {
-        ESP_LOGW(TAG, "Sensor is in invalid state: pin = %d, state = %d",
-                 pin_state, sensor->state);
+        /* ESP_LOGW(TAG, "Sensor is in invalid state: pin = %d, state = %d", */
+        /*          pin_state, sensor->state); */
         sensor->state = idle; // Reset to default state
       }
     }
