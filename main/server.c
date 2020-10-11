@@ -1,6 +1,7 @@
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "freertos/queue.h"
 
 #include "./controller.h"
 #include "./server.h"
@@ -8,11 +9,10 @@
 static char *TAG = "robot-server";
 
 static esp_err_t get_handler(httpd_req_t *req) {
-  extern const unsigned char remote_html_start[] asm(
-      "_binary_remote_html_start");
-  extern const unsigned char remote_html_end[] asm("_binary_remote_html_end");
+  extern const char *remote_html_start asm("_binary_remote_html_start");
+  extern const char *remote_html_end asm("_binary_remote_html_end");
   const size_t remote_html_len = (remote_html_end - remote_html_start);
-  httpd_resp_send(req, (char *)remote_html_start, remote_html_len);
+  httpd_resp_send(req, remote_html_start, remote_html_len);
 
   return ESP_OK;
 }
@@ -27,9 +27,11 @@ static void handle_message(char *payload) {
     float y = cJSON_GetObjectItem(jsonPosition, "y")->valuedouble;
 
     remote_event event = {.new_position = {x, y}};
-    // TODO: This should use a queue
-    update_state(event);
-    control_sync();
+
+    assert(control_queue != NULL);
+    if (!xQueueSend(control_queue, &event, 10 / portTICK_PERIOD_MS)) {
+      ESP_LOGE(TAG, "Control queue is full, dropping event");
+    }
   }
 
   cJSON_Delete(msg);

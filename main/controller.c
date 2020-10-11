@@ -7,11 +7,11 @@
 #include "motor.h"
 #include "server.h"
 
-void update_state(remote_event event) {
-  global_controller.remote_position[X_IDX] = event.new_position[X_IDX];
-  global_controller.remote_position[Y_IDX] = event.new_position[Y_IDX];
+void update_state(remote_event *event) {
+  global_controller.remote_position[X_IDX] = event->new_position[X_IDX];
+  global_controller.remote_position[Y_IDX] = event->new_position[Y_IDX];
 
-  if (event.new_position[X_IDX] == 0 && event.new_position[Y_IDX] == 0) {
+  if (event->new_position[X_IDX] == 0 && event->new_position[Y_IDX] == 0) {
     stop_motor(&global_controller.left_motor);
   }
 }
@@ -59,4 +59,19 @@ void control_sync() {
       set_motor_speed(&global_controller.right_motor, target_speed);
     }
   }
+}
+
+void control_loop() {
+  remote_event event;
+  while (true) {
+    if (xQueueReceive(control_queue, &event, portMAX_DELAY)) {
+      update_state(&event);
+    }
+  }
+}
+
+void control_init() {
+  control_queue = xQueueCreate(3, sizeof(remote_event));
+
+  xTaskCreate(control_loop, "control_loop", 2048, NULL, 10, NULL);
 }

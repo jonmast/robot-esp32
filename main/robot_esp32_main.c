@@ -64,16 +64,6 @@ void app_main(void) {
 
   xTaskCreate(poll_distance, "poll_distance", 2048, NULL, 10, NULL);
 
+  control_init();
   init_wifi(&start_webserver);
-  /* xTaskCreate(control_loop, "control_loop", 2048, NULL, 10, NULL); */
-
-  /* while (true) { */
-  /*   printf("Powering motor\n"); */
-  /*   set_motor_speed(&left_motor, 40); */
-  /*   vTaskDelay(1000 / portTICK_PERIOD_MS); */
-
-  /*   printf("going slow\n"); */
-  /*   set_motor_speed(&left_motor, 10); */
-  /*   vTaskDelay(2000 / portTICK_PERIOD_MS); */
-  /* } */
 }

@@ -2,6 +2,7 @@
 
 #include "./motor.h"
 #include "./server.h"
+#include "freertos/queue.h"
 
 // Indexes of x and y in remote_position vector
 #define X_IDX 0
@@ -14,8 +15,8 @@ typedef struct {
   float front_distance;
 } controller;
 
-void update_state(remote_event event);
-void control_loop(void *pvParameters);
-void control_sync();
+xQueueHandle control_queue;
+
+void control_init();
 
 extern controller global_controller;
