@@ -23,7 +23,8 @@
 #include "./ultrasonic.h"
 #include "./wifi.h"
 
-controller global_controller = {.remote_position = {0, 0}};
+controller global_controller = {
+    .remote_position = {0, 0}, .front_distance = 0, .mode = mode_off};
 
 void app_main(void) {
   printf("Hello world!\n");

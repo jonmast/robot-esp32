@@ -54,15 +54,36 @@ static void control_sync() {
   }
 }
 
-static void update_state(remote_event *event) {
-  global_controller.remote_position[X_IDX] = event->new_position[X_IDX];
-  global_controller.remote_position[Y_IDX] = event->new_position[Y_IDX];
+static void update_position(float new_position[2]) {
+  if (global_controller.mode != mode_manual) {
+    return;
+  }
 
-  if (event->new_position[X_IDX] == 0 && event->new_position[Y_IDX] == 0) {
+  global_controller.remote_position[X_IDX] = new_position[X_IDX];
+  global_controller.remote_position[Y_IDX] = new_position[Y_IDX];
+
+  if (new_position[X_IDX] == 0 && new_position[Y_IDX] == 0) {
     stop_motor(&global_controller.left_motor);
   }
 
   control_sync();
+}
+
+static void update_mode(enum control_mode mode) {
+  stop_motor(&global_controller.left_motor);
+  stop_motor(&global_controller.right_motor);
+  global_controller.mode = mode;
+}
+
+static void update_state(remote_event *event) {
+  switch (event->type) {
+  case position:
+    update_position(event->new_position);
+    break;
+  case mode:
+    update_mode(event->new_mode);
+    break;
+  }
 }
 
 static void remote_input() {
@@ -76,7 +97,7 @@ static void remote_input() {
 
 typedef struct {
   int64_t last_changed;
-  enum { forward_motion, turning } status;
+  enum { off, forward_motion, turning } status;
 } autonomous_state;
 
 static void go_forward(autonomous_state *state, const int64_t current_time) {
@@ -114,12 +135,19 @@ static void backward_turn(autonomous_state *state, const int64_t current_time) {
 }
 
 static void autonomous_loop() {
-  autonomous_state state = {.status = forward_motion,
+  autonomous_state state = {.status = off,
                             .last_changed = esp_timer_get_time()};
-  go_forward(&state, esp_timer_get_time());
 
   while (true) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
+    if (global_controller.mode != mode_autonomous) {
+      state.status = off;
+      continue;
+    }
+
+    if (state.status == off) {
+      go_forward(&state, esp_timer_get_time());
+    }
 
     int64_t current_time = esp_timer_get_time();
 

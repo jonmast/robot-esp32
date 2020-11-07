@@ -3,7 +3,6 @@
 #include "esp_log.h"
 #include "freertos/queue.h"
 
-#include "controller.h"
 #include "server.h"
 
 static char *TAG = "robot-server";
@@ -17,20 +16,53 @@ static esp_err_t get_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static void send_control_event(remote_event *event) {
+  assert(control_queue != NULL);
+  if (!xQueueSend(control_queue, event, 10 / portTICK_PERIOD_MS)) {
+    ESP_LOGE(TAG, "Control queue is full, dropping event");
+  }
+}
+
 static void handle_message(char *payload) {
   cJSON *msg = cJSON_Parse(payload);
   cJSON *jsonPosition = cJSON_GetObjectItem(msg, "position");
+  cJSON *jsonMode = cJSON_GetObjectItem(msg, "mode");
 
   if (jsonPosition) {
     ESP_LOGI(TAG, "Got packet with message: %s", payload);
     float x = cJSON_GetObjectItem(jsonPosition, "x")->valuedouble;
     float y = cJSON_GetObjectItem(jsonPosition, "y")->valuedouble;
 
-    remote_event event = {.new_position = {x, y}};
+    remote_event event = {.type = position, .new_position = {x, y}};
 
     assert(control_queue != NULL);
     if (!xQueueSend(control_queue, &event, 10 / portTICK_PERIOD_MS)) {
       ESP_LOGE(TAG, "Control queue is full, dropping event");
+    }
+  }
+
+  if (jsonMode) {
+    ESP_LOGI(TAG, "Got mode change event with new mode %s",
+             jsonMode->valuestring);
+    bool was_set = false;
+    enum control_mode new_mode;
+
+    if (strcmp(jsonMode->valuestring, "off") == 0) {
+      new_mode = mode_off;
+      was_set = true;
+    } else if (strcmp(jsonMode->valuestring, "autonomous") == 0) {
+      new_mode = mode_autonomous;
+      was_set = true;
+    } else if (strcmp(jsonMode->valuestring, "manual") == 0) {
+      new_mode = mode_manual;
+      was_set = true;
+    };
+
+    if (was_set) {
+      remote_event event = {.type = mode, .new_mode = new_mode};
+      send_control_event(&event);
+    } else {
+      ESP_LOGI(TAG, "Unrecognized mode %s", jsonMode->valuestring);
     }
   }
 
@@ -46,6 +78,19 @@ static char *current_state_json() {
                           global_controller.right_motor.current_speed);
   cJSON_AddNumberToObject(msg, "front_distance",
                           global_controller.front_distance);
+  char *mode = "";
+  switch (global_controller.mode) {
+  case mode_off:
+    mode = "off";
+    break;
+  case mode_autonomous:
+    mode = "autonomous";
+    break;
+  case mode_manual:
+    mode = "manual";
+    break;
+  }
+  cJSON_AddStringToObject(msg, "mode", mode);
 
   char *result = cJSON_Print(msg);
 

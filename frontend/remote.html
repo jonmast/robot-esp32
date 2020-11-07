@@ -34,6 +34,10 @@
       #log {
         margin-top: 10px;
       }
+
+      .selected {
+        font-weight: bold;
+      }
     </style>
   </head>
   <body>
@@ -52,10 +56,22 @@
     <div id="status"></div>
     <div id="log"></div>
 
+    <h3>Mode</h3>
+    <div>
+      <button id="off" class="selected">Off</button>
+      <button id="autonomous">Autonomous</button>
+      <button id="manual">Manual</button>
+    </div>
+
     <script>
       let socket;
       const logEl = document.getElementById("log");
       const statusEl = document.getElementById("status");
+
+      const offButton = document.getElementById("off");
+      const autonomousButton = document.getElementById("autonomous");
+      const manualButton = document.getElementById("manual");
+      const buttons = [offButton, autonomousButton, manualButton];
 
       function connect() {
         socket = new WebSocket(`ws://${location.hostname}/websocket`);
@@ -77,6 +93,14 @@
           )}, Right: ${data.right.toFixed(
             0
           )}, Front: ${data.front_distance.toFixed(0)}`;
+
+          for (const button of buttons) {
+            if (button.id == data.mode) {
+              button.classList.add("selected");
+            } else {
+              button.classList.remove("selected");
+            }
+          }
         };
       }
 
@@ -134,14 +158,19 @@
           const y = normalizePosition(yPos);
 
           console.log("Moved to", [x, y]);
-          socket.send(JSON.stringify({ position: { x: x, y: y } }));
+          socket_send({ position: { x: x, y: y } });
         };
 
         const end = (event) => {
           console.log("end");
 
           dragStart = null;
-          socket.send(JSON.stringify({ position: { x: 0, y: 0 } }));
+          socket_send({ position: { x: 0, y: 0 } });
+        };
+
+        const changeMode = (event) => {
+          const el = event.currentTarget;
+          socket_send({ mode: el.id });
         };
 
         const throttledMove = throttle(move, 20);
@@ -151,10 +180,20 @@
         document.addEventListener("touchmove", throttledMove);
         document.addEventListener("mouseup", end);
         document.addEventListener("touchend", end);
+
+        for (const button of buttons) {
+          button.addEventListener("click", changeMode);
+        }
+      }
+
+      function socket_send(payload) {
+        if (socket.readyState == WebSocket.OPEN) {
+          socket.send(JSON.stringify(payload));
+        }
       }
 
       function send_heartbeat() {
-        socket.send(JSON.stringify({}));
+        socket_send({});
       }
 
       function throttle(func, limit) {
